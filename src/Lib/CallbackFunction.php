@@ -13,7 +13,7 @@ class CallbackFunction implements \JsonSerializable
      * Holds all prepared JS statements to be injected into JSON
      * @var array
      */
-    protected static $_placeholders = [];
+    protected static array $_placeholders = [];
 
     /**
      * Resolve all hashes in a JSON string with their respective javascript code
@@ -23,10 +23,9 @@ class CallbackFunction implements \JsonSerializable
     public static function resolve(string $json) : string
     {
         /* allow one recursion (a callback with a callback as argument) */
-        $replacements = [];
-        foreach (self::$_placeholders as $id => $content) {
-            $replacements[$id] = strtr($content, self::$_placeholders);
-        }
+        $replacements = array_map(static function ($content) {
+            return strtr($content, self::$_placeholders);
+        }, self::$_placeholders);
         return strtr($json, $replacements);
     }
 
@@ -34,7 +33,7 @@ class CallbackFunction implements \JsonSerializable
      * Holds this specific object's hash to be passed in jsonSerialize()
      * @var string
      */
-    protected $hash;
+    protected string $hash;
 
     /**
      * CallbackFunction constructor.
@@ -79,7 +78,8 @@ class CallbackFunction implements \JsonSerializable
 
     /**
      * Serialize to a placeholder in json
-     * @return: a unique hash to be replaced by resolve() after json_encode()
+     *
+     * @return string : a unique hash to be replaced by resolve() after json_encode()
      */
     public function jsonSerialize() : string
     {

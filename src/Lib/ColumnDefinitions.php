@@ -9,23 +9,25 @@ use Traversable;
 
 class ColumnDefinitions implements \JsonSerializable, \ArrayAccess, \IteratorAggregate, \Countable
 {
-    protected $columns = [];
-    protected $index = [];
+    protected array $columns = [];
+    protected array $index = [];
 
     /**
-     * @param $column string|array name or pre-filled array
-     * @param $fieldname: ORM field this column is based on
+     * @param $column array|string name or pre-filled array
+     * @param string|null $fieldname: ORM field this column is based on
      * @return ColumnDefinition
      */
-    public function add($column, string $fieldname = null) : ColumnDefinition
+    public function add(array|string $column, ?string $fieldname = null) : ColumnDefinition
     {
-        if (!is_array($column))
+        if (!is_array($column)) {
             $column = [
                 'name' => $column,
                 'data' => $column, // a good guess (user can adjust it later)
             ];
-        if ($fieldname)
+        }
+        if ($fieldname) {
             $column['field'] = $fieldname;
+        }
 
         $column = new ColumnDefinition($column, $this);
         $this->store($column);
@@ -40,19 +42,21 @@ class ColumnDefinitions implements \JsonSerializable, \ArrayAccess, \IteratorAgg
      */
     public function setTitles(array $titles)
     {
-        if (count($titles) != count($this->columns)) {
+        if (count($titles) !== count($this->columns)) {
             $msg = 'Have ' . count($this->columns) . ' columns, but ' . count($titles) . ' titles given!';
             throw new \InvalidArgumentException($msg);
         }
         foreach ($titles as $i => $t) {
-            if (!empty($t))
+            if (!empty($t)) {
                 $this->columns[$i]['title'] = $t;
+            }
         }
     }
 
     /**
      * Serialize to an array in json
-     * @return: column definitions
+     *
+     * @return array : column definitions
      */
     public function jsonSerialize() : array
     {
@@ -61,15 +65,19 @@ class ColumnDefinitions implements \JsonSerializable, \ArrayAccess, \IteratorAgg
 
     public function offsetExists($offset) : bool
     {
-        if (is_numeric($offset))
+        if (is_numeric($offset)) {
             return isset($this->columns[$offset]);
+        }
+
         return isset($this->index[$offset]);
     }
 
     public function offsetGet(mixed $offset): mixed
     {
-        if (is_numeric($offset))
+        if (is_numeric($offset)) {
             return $this->columns[$offset];
+        }
+
         return $this->columns[$this->index[$offset]];
     }
 

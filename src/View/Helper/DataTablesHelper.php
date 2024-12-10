@@ -98,17 +98,18 @@ class DataTablesHelper extends Helper
         }
 
         // sanitize & translate order
-        if (!empty($options['order']))
+        if (!empty($options['order'])) {
             $this->translateOrder($options['order'], $options['columns']);
+        }
 
         // remove field names, which are an internal/server-side setting
-        foreach ($options['columns'] as $key => $v)
+        foreach ($options['columns'] as $key => $v) {
             unset($options['columns'][$key]['field']);
+        }
 
         // prepare javascript object from the config, including method calls
         $json = CallbackFunction::resolve(json_encode($options));
-        $json = str_replace('"#!!','',$json);
-        $json = str_replace('!!#"','',$json);
+        $json = str_replace(['"#!!', '!!#"'], '', $json);
 
         // return a call to initializer method
         return "dt.initDataTables('{$selector}', {$json});\n";
@@ -118,29 +119,33 @@ class DataTablesHelper extends Helper
     {
         // sanitize cakephp style input [a => b] -> [[a, b]]
         $new_order = [];
-        array_walk($order, function ($val, $key) use (&$new_order) {
-            if (is_integer($key))
+        array_walk($order, static function ($val, $key) use (&$new_order) {
+            if (is_int($key)) {
                 $new_order[] = $val;
-            else
+            }
+            else {
                 $new_order[] = [$key, $val];
+            }
         });
         $order = $new_order;
 
         // sanitize single column input [a, b] -> [[a, b]]
-        if (count($order) == 2 && !is_array($order[0]))
+        if (count($order) === 2 && !is_array($order[0])) {
             $order = [$order];
+        }
 
         // translate order columns
         foreach ($order as $i => $o) {
-            if (is_numeric($order))
-                continue; // already a numerical index
+            if (is_numeric($order)) {
+                continue;
+            } // already a numerical index
 
             foreach ($columns as $key => $v) {
                 // user might have specified it either way…
                 if ($o[0] === ($v['data'] ?? null) || $o[0] === ($v['field'] ?? null)) {
                     $order[$i][0] = $key;
                     break;
-    }
+                }
             }
         }
         return $order;

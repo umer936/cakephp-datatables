@@ -81,8 +81,9 @@ class DataTablesComponent extends Component
     private function _draw()
     {
         $drawParam = $this->getController()->getRequest()->getQuery('draw');
-        if (!$drawParam)
+        if (!$drawParam) {
             return;
+        }
 
         $this->_viewVars['draw'] = (int)$drawParam;
     }
@@ -98,25 +99,32 @@ class DataTablesComponent extends Component
     {
         $queryParams = $this->getController()->getRequest()->getQueryParams();
 
-        if (empty($queryParams['order']))
+        if (empty($queryParams['order'])) {
             return;
+        }
 
         $order = $this->getConfig('order');
         /* extract custom ordering from request */
         foreach ($queryParams['order'] as $item) {
-            if (!count($columns)) // note: empty() does not work on objects
+            // note: empty() does not work on objects
+            if (!count($columns)) {
                 throw new \InvalidArgumentException('Column ordering requested, but no column definitions provided.');
+            }
 
             $dir = strtoupper($item['dir']);
-            if (!in_array($dir, ['ASC', 'DESC']))
+            if (!in_array($dir, ['ASC', 'DESC'])) {
                 throw new BadRequestException('Malformed order direction.');
+            }
 
             $c = $columns[$item['column']] ?? null;
-            if (!$c || !($c['orderable'] ?? true)) // orderable is true by default
+            // orderable is true by default
+            if (!$c || !($c['orderable'] ?? true)) {
                 throw new BadRequestException('Illegal column ordering.');
+            }
 
-            if (empty($c['field']))
+            if (empty($c['field'])) {
                 throw new \InvalidArgumentException('Column description misses field name.');
+            }
 
             $order[$c['field']] = $dir;
         }
@@ -136,11 +144,12 @@ class DataTablesComponent extends Component
      * Process query data of ajax request regarding filtering
      * Alters $options if delegateSearch is set
      * In this case, the model needs to handle the 'globalSearch' option.
-     * @param $options: Query options
-     * @param ColumnDefinitions|array $columns Column definitions
-     * @return: true if additional filtering takes place
+     *
+     * @param array $options : Query options
+     * @param array|ColumnDefinitions $columns Column definitions
+     * @return bool : true if additional filtering takes place
      */
-    private function _filter(array &$options, &$columns) : bool
+    private function _filter(array &$options, array|ColumnDefinitions &$columns) : bool
     {
         $queryParams = $this->getController()->getRequest()->getQueryParams();
 
@@ -158,19 +167,23 @@ class DataTablesComponent extends Component
         /* add global filter (general search field) */
         $globalSearch = $queryParams['search']['value'] ?? '';
         if ($globalSearch !== '') {
-            if (empty($columns))
+            if (empty($columns)) {
                 throw new \InvalidArgumentException('Filtering requested, but no column definitions provided.');
+            }
 
             if ($delegateSearch) {
             $options['globalSearch'] = $globalSearch;
                 $haveFilters = true;
             } else {
                 foreach ($columns as $c) {
-                    if (!($c['searchable'] ?? true)) // searchable is true by default
+                    // searchable is true by default
+                    if (!($c['searchable'] ?? true)) {
                         continue;
+                    }
 
-                    if (empty($c['field']))
+                    if (empty($c['field'])) {
                         throw new \InvalidArgumentException('Column description misses field name.');
+                    }
 
                     $this->_addCondition($c['field'], $globalSearch, 'or');
                     $haveFilters = true;
@@ -182,15 +195,20 @@ class DataTablesComponent extends Component
         foreach ($queryParams['columns'] ?? [] as $index => $column) {
             $localSearch = $column['search']['value'] ?? '';
             if ($localSearch !== '') {
-                if (!count($columns)) // note: empty() does not work on objects
+                // note: empty() does not work on objects
+                if (!count($columns)) {
                     throw new \InvalidArgumentException('Filtering requested, but no column definitions provided.');
+                }
 
                 $c = $columns[$index] ?? null;
-                if (!$c || !($c['searchable'] ?? true)) // searchable is true by default
+                // searchable is true by default
+                if (!$c || !($c['searchable'] ?? true)) {
                     throw new BadRequestException('Illegal filter request.');
+                }
 
-                if (empty($c['field']))
+                if (empty($c['field'])) {
                     throw new \InvalidArgumentException('Column description misses field name.');
+                }
 
                 if ($delegateSearch) {
                     $options['localSearch'][$c['field']] = $localSearch;
@@ -216,8 +234,9 @@ class DataTablesComponent extends Component
     public function find(string $tableName, string $finder = 'all', array $options = [], array $columns = []) : Query
     {
         $delegateSearch = $options['delegateSearch'] ?? false;
-        if (empty($columns))
+        if (empty($columns)) {
             $columns = $this->_columns;
+        }
 
         // -- get table object
         $this->_table = $this->getTableLocator()->get($tableName);
@@ -328,9 +347,9 @@ class DataTablesComponent extends Component
     /**
      * Get comparison operator by entity and column name.
      *
-     * @param $table: Target ORM table
-     * @param $column: Database column name (may be in form Table.column)
-     * @return: Database comparison operator
+     * @param \Cake\ORM\Table $table : Target ORM table
+     * @param string $column : Database column name (may be in form Table.column)
+     * @return string : Database comparison operator
      */
     protected function _getComparison(Table $table, string $column) : string
     {
@@ -341,8 +360,9 @@ class DataTablesComponent extends Component
             $wanted = sprintf('%s.%s', $table->getAlias(), $column);
             return strtolower($key) === strtolower($wanted);
         });
-        if (!$userConfig->isEmpty())
+        if (!$userConfig->isEmpty()) {
             return $userConfig->first();
+        }
 
         /* Lookup per-field type configuration for the comparison operator */
         $columnDesc = $table->getSchema()->getColumn($column);

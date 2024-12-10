@@ -4,31 +4,31 @@ namespace DataTables\Lib;
 
 /**
  * A convenience array wrapper that holds a single column definition
- * @method ColumnDefintion visible()
- * @method ColumnDefintion notVisible()
- * @method ColumnDefintion orderable()
- * @method ColumnDefintion notOrderable()
- * @method ColumnDefintion searchable()
- * @method ColumnDefintion notSearchable()
+ * @method ColumnDefinition visible()
+ * @method ColumnDefinition notVisible()
+ * @method ColumnDefinition orderable()
+ * @method ColumnDefinition notOrderable()
+ * @method ColumnDefinition searchable()
+ * @method ColumnDefinition notSearchable()
  */
 class ColumnDefinition implements \JsonSerializable, \ArrayAccess
 {
     /** @var array holding all column properties */
-    public $content = [];
+    public array $content = [];
 
     /** @var ColumnDefinitions */
-    protected $owner = null;
+    protected ColumnDefinitions $owner;
 
-    protected $switchesPositive = ['visible', 'orderable', 'searchable'];
+    protected array $switchesPositive = ['visible', 'orderable', 'searchable'];
     // will be filled in constructor
-    protected $switchesNegative = [];
+    protected array $switchesNegative = [];
 
     public function __construct(array $template, ColumnDefinitions $owner)
     {
         $this->content = $template;
         $this->owner = $owner;
 
-        $this->switchesNegative = array_map(function ($e) {
+        $this->switchesNegative = array_map(static function ($e) {
             return 'not'.ucfirst($e);
         }, $this->switchesPositive);
     }
@@ -44,15 +44,17 @@ class ColumnDefinition implements \JsonSerializable, \ArrayAccess
 
     /**
      * Set one or many properties
-     * @param $key string|array If array given, it should be key -> value
+     *
+     * @param $key array|string If array given, it should be key -> value
      * @param $value: The singular value to set, if string $key given
      * @return ColumnDefinition
      */
-    public function set($key, $value = null) : ColumnDefinition
+    public function set(array|string $key, $value = null) : ColumnDefinition
     {
         if (is_array($key)) {
-            if (!empty($value))
+            if (!empty($value)) {
                 throw new \InvalidArgumentException("Provide either array or key/value pair!");
+            }
 
             $this->content = $key + $this->content;
         } else {
@@ -65,14 +67,16 @@ class ColumnDefinition implements \JsonSerializable, \ArrayAccess
     public function __call($name, $arguments) : ColumnDefinition
     {
         if (in_array($name, $this->switchesPositive)) {
-            if (!empty($arguments))
+            if (!empty($arguments)) {
                 throw new \InvalidArgumentException("$name() takes no arguments!");
+            }
 
             $this->content[$name] = true;
         }
         if (in_array($name, $this->switchesNegative)) {
-            if (!empty($arguments))
+            if (!empty($arguments)) {
                 throw new \InvalidArgumentException("$name() takes no arguments!");
+            }
 
             $name = lcfirst(substr($name, 3));
             $this->content[$name] = false;
@@ -126,5 +130,4 @@ class ColumnDefinition implements \JsonSerializable, \ArrayAccess
     {
         unset($this->content[$offset]);
     }
-
 }
