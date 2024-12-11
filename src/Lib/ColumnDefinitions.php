@@ -1,113 +1,176 @@
 <?php
-/**
- * A convenience method to set up a column definitions array
- */
 
 namespace DataTables\Lib;
 
 use Traversable;
+use ArrayAccess;
+use IteratorAggregate;
+use Countable;
+use InvalidArgumentException;
+use BadMethodCallException;
+use ArrayIterator;
 
-class ColumnDefinitions implements \JsonSerializable, \ArrayAccess, \IteratorAggregate, \Countable
+/**
+ * A convenience class to manage DataTables column definitions
+ */
+class ColumnDefinitions implements \JsonSerializable, ArrayAccess, IteratorAggregate, Countable
 {
+    /** @var ColumnDefinition[] List of columns */
     protected array $columns = [];
+
+    /** @var array<string, int> Index of columns by name */
     protected array $index = [];
 
     /**
-     * @param $column array|string name or pre-filled array
-     * @param string|null $fieldname: ORM field this column is based on
-     * @return ColumnDefinition
+     * Add a new column to the collection.
+     *
+     * @param array|string $column Name or pre-filled array for the column
+     * @param string|null $fieldname ORM field this column is based on
+     * @return ColumnDefinition The added column definition
      */
-    public function add(array|string $column, ?string $fieldname = null) : ColumnDefinition
+    public function add(array|string $column, ?string $fieldname = null): ColumnDefinition
     {
-        if (!is_array($column)) {
+        if (is_string($column)) {
             $column = [
                 'name' => $column,
-                'data' => $column, // a good guess (user can adjust it later)
+                'data' => $column, // Default to name for data field
             ];
         }
+
         if ($fieldname) {
             $column['field'] = $fieldname;
         }
 
-        $column = new ColumnDefinition($column, $this);
-        $this->store($column);
+        $columnDefinition = new ColumnDefinition($column, $this);
+        $this->store($columnDefinition);
 
-        return $column;
+        return $columnDefinition;
     }
 
     /**
-     * Set titles of columns in given order
-     * Convenience method for setting all titles at once
-     * @param $titles array of titles in order of columns
+     * Set titles for all columns in the order they appear.
+     *
+     * @param string[] $titles Array of titles
+     * @throws InvalidArgumentException When the count of titles does not match the columns
      */
-    public function setTitles(array $titles)
+    public function setTitles(array $titles): void
     {
-        if (count($titles) !== count($this->columns)) {
-            $msg = 'Have ' . count($this->columns) . ' columns, but ' . count($titles) . ' titles given!';
-            throw new \InvalidArgumentException($msg);
+        $columnCount = count($this->columns);
+
+        if (count($titles) !== $columnCount) {
+            throw new InvalidArgumentException(
+                sprintf('Expected %d titles, but %d given.', $columnCount, count($titles))
+            );
         }
-        foreach ($titles as $i => $t) {
-            if (!empty($t)) {
-                $this->columns[$i]['title'] = $t;
+
+        foreach ($titles as $i => $title) {
+            if (!empty($title)) {
+                $this->columns[$i]['title'] = $title;
             }
         }
     }
 
     /**
-     * Serialize to an array in json
+     * Serialize the column definitions to an array for JSON encoding.
      *
-     * @return array : column definitions
+     * @return array Serialized column definitions
      */
-    public function jsonSerialize() : array
+    public function jsonSerialize(): array
     {
         return array_values($this->columns);
     }
 
-    public function offsetExists($offset) : bool
+    /**
+     * Check if a column exists by offset (index or name).
+     *
+     * @param mixed $offset Column index or name
+     * @return bool True if the column exists, false otherwise
+     */
+    public function offsetExists($offset): bool
     {
-        if (is_numeric($offset)) {
-            return isset($this->columns[$offset]);
-        }
-
-        return isset($this->index[$offset]);
+        return is_numeric($offset)
+            ? isset($this->columns[$offset])
+            : isset($this->index[$offset]);
     }
 
+    /**
+     * Get a column definition by offset (index or name).
+     *
+     * @param mixed $offset Column index or name
+     * @return ColumnDefinition
+     * @throws InvalidArgumentException If the column does not exist
+     */
     public function offsetGet(mixed $offset): mixed
     {
         if (is_numeric($offset)) {
             return $this->columns[$offset];
         }
 
+        if (!isset($this->index[$offset])) {
+            throw new InvalidArgumentException(sprintf('Column with name "%s" does not exist.', $offset));
+        }
+
         return $this->columns[$this->index[$offset]];
     }
 
+    /**
+     * Prevent direct setting of columns.
+     *
+     * @param mixed $offset Ignored
+     * @param mixed $value Ignored
+     * @throws BadMethodCallException Always
+     */
     public function offsetSet(mixed $offset, mixed $value): void
     {
-        throw new \BadMethodCallException('Direct setting is not supported! Use add().');
+        throw new BadMethodCallException('Direct setting is not supported. Use add() instead.');
     }
 
+    /**
+     * Prevent unsetting of columns.
+     *
+     * @param mixed $offset Ignored
+     * @throws BadMethodCallException Always
+     */
     public function offsetUnset(mixed $offset): void
     {
-        /* we do not allow splicing because DataTables uses a column's index
+        /* We do not allow splicing because DataTables uses a column's index
            for the ordering command. So the order of columns needs to stay
            consistent from the Controller down to the table displayed. */
-        throw new \BadMethodCallException('Unset is not supported!');
+        throw new BadMethodCallException('Unset operation is not supported.');
     }
 
+    /**
+     * Get an iterator for the columns.
+     *
+     * @return Traversable Iterator for the columns
+     */
     public function getIterator(): Traversable
     {
-        return new \ArrayIterator($this->columns);
+        return new ArrayIterator($this->columns);
     }
 
+    /**
+     * Get the number of columns.
+     *
+     * @return int Number of columns
+     */
     public function count(): int
     {
         return count($this->columns);
     }
 
-    protected function store(ColumnDefinition $column)
+    /**
+     * Store a column definition in the collection.
+     *
+     * Keep track of where we stored it.
+     * Note: our array is only growing! No splicing!
+     *
+     * @param ColumnDefinition $column Column definition to store
+     */
+    protected function store(ColumnDefinition $column): void
     {
         $this->columns[] = $column;
-        /* keep track of where we stored it.
+        /* Keep track of where we stored it.
            Note: our array is only growing! No splicing! */
         $this->index[$column['name']] = count($this->columns) - 1;
     }

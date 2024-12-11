@@ -3,7 +3,8 @@
 namespace DataTables\Lib;
 
 /**
- * A convenience array wrapper that holds a single column definition
+ * A convenience wrapper for managing a single column definition.
+ *
  * @method ColumnDefinition visible()
  * @method ColumnDefinition notVisible()
  * @method ColumnDefinition orderable()
@@ -13,120 +14,172 @@ namespace DataTables\Lib;
  */
 class ColumnDefinition implements \JsonSerializable, \ArrayAccess
 {
-    /** @var array holding all column properties */
+    /** @var array<string, mixed> Stores all column properties */
     public array $content = [];
 
-    /** @var ColumnDefinitions */
+    /** @var ColumnDefinitions Reference to the owner column definitions */
     protected ColumnDefinitions $owner;
 
+    /** @var string[] List of positive toggleable properties */
     protected array $switchesPositive = ['visible', 'orderable', 'searchable'];
-    // will be filled in constructor
+
+    /** @var string[] List of negative toggleable properties */
     protected array $switchesNegative = [];
 
+    /**
+     * Constructor.
+     *
+     * @param array $template Initial properties for the column
+     * @param ColumnDefinitions $owner Reference to the owning ColumnDefinitions object
+     */
     public function __construct(array $template, ColumnDefinitions $owner)
     {
         $this->content = $template;
         $this->owner = $owner;
 
-        $this->switchesNegative = array_map(static function ($e) {
-            return 'not'.ucfirst($e);
-        }, $this->switchesPositive);
+        // Generate negative counterparts for switches
+        $this->switchesNegative = array_map(
+            static fn($property) => 'not' . ucfirst($property),
+            $this->switchesPositive
+        );
     }
 
     /**
-     * Refer back to owner's add()
-     * A convenient way to add another column
+     * Adds a new column via the owner.
+     *
+     * @param mixed ...$args Arguments for the owner's add method
+     * @return ColumnDefinition The added column
      */
-    public function add(...$args) : ColumnDefinition
+    public function add(...$args): ColumnDefinition
     {
         return $this->owner->add(...$args);
     }
 
     /**
-     * Set one or many properties
+     * Sets one or more properties for the column.
      *
-     * @param $key array|string If array given, it should be key -> value
-     * @param $value: The singular value to set, if string $key given
+     * @param array|string $key Array of key-value pairs or a single key
+     * @param mixed|null $value Value to set if $key is a string
      * @return ColumnDefinition
+     * @throws \InvalidArgumentException If both an array and value are provided
      */
-    public function set(array|string $key, $value = null) : ColumnDefinition
+    public function set(array|string $key, $value = null): ColumnDefinition
     {
         if (is_array($key)) {
-            if (!empty($value)) {
-                throw new \InvalidArgumentException("Provide either array or key/value pair!");
+            if ($value !== null) {
+                throw new \InvalidArgumentException('Provide either an array or a key-value pair, not both.');
             }
-
-            $this->content = $key + $this->content;
+            $this->content = array_merge($this->content, $key);
         } else {
             $this->content[$key] = $value;
         }
         return $this;
     }
 
-    /* provide some convenience wrappers for set() */
-    public function __call($name, $arguments) : ColumnDefinition
+    /**
+     * Convenience method for toggling properties.
+     *
+     * @param string $name Name of the method called
+     * @param array $arguments Arguments passed to the method
+     * @return ColumnDefinition
+     * @throws \InvalidArgumentException If arguments are provided to toggling methods
+     */
+    public function __call(string $name, array $arguments): ColumnDefinition
     {
-        if (in_array($name, $this->switchesPositive)) {
-            if (!empty($arguments)) {
-                throw new \InvalidArgumentException("$name() takes no arguments!");
-            }
-
-            $this->content[$name] = true;
+        if (!empty($arguments)) {
+            throw new \InvalidArgumentException("$name() does not accept any arguments.");
         }
-        if (in_array($name, $this->switchesNegative)) {
-            if (!empty($arguments)) {
-                throw new \InvalidArgumentException("$name() takes no arguments!");
-            }
 
-            $name = lcfirst(substr($name, 3));
+        if (in_array($name, $this->switchesPositive)) {
+            $this->content[$name] = true;
+        } elseif (in_array($name, $this->switchesNegative)) {
+            $name = lcfirst(substr($name, 3)); // Remove 'not' prefix and lowercase
             $this->content[$name] = false;
+        } else {
+            throw new \BadMethodCallException("Undefined method $name.");
         }
 
         return $this;
     }
 
-    public function unset(string $key) : ColumnDefinition
+    /**
+     * Unsets a property by key.
+     *
+     * @param string $key Property key to remove
+     * @return ColumnDefinition
+     */
+    public function unset(string $key): ColumnDefinition
     {
         unset($this->content[$key]);
         return $this;
     }
 
     /**
-     * @param $name: see CallbackFunction::__construct
-     * @param $args: see CallbackFunction::__construct
+     * Sets a custom render function for the column.
+     *
+     * @param string $name Name of the render function
+     * @param array $args Arguments for the render function
      * @return ColumnDefinition
      */
-    public function render(string $name, array $args = []) : ColumnDefinition
+    public function render(string $name, array $args = []): ColumnDefinition
     {
         $this->content['render'] = new CallbackFunction($name, $args);
         return $this;
     }
 
-    public function jsonSerialize() : array
+    /**
+     * Serializes the column content to an array for JSON encoding.
+     *
+     * @return array The column's properties
+     */
+    public function jsonSerialize(): array
     {
         return $this->content;
     }
 
-    public function offsetExists($offset)
+    /**
+     * Checks if a property exists.
+     *
+     * @param mixed $offset Property key
+     * @return bool
+     */
+    public function offsetExists($offset): bool
     {
         return isset($this->content[$offset]);
     }
 
-    public function offsetGet($offset)
+    /**
+     * Gets a property by key.
+     *
+     * @param mixed $offset Property key
+     * @return mixed
+     */
+    public function offsetGet($offset): mixed
     {
         return $this->content[$offset];
     }
 
-    public function offsetSet($offset, $value)
+    /**
+     * Sets a property by key.
+     *
+     * @param mixed $offset Property key
+     * @param mixed $value Value to set
+     */
+    public function offsetSet($offset, $value): void
     {
-        if (is_null($offset)) {
+        if ($offset === null) {
             $this->content[] = $value;
         } else {
             $this->content[$offset] = $value;
         }
     }
 
-    public function offsetUnset($offset)
+    /**
+     * Unsets a property by key.
+     *
+     * @param mixed $offset Property key
+     */
+    public function offsetUnset($offset): void
     {
         unset($this->content[$offset]);
     }

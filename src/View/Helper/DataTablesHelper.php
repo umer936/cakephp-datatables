@@ -5,9 +5,8 @@ use Cake\View\Helper;
 use DataTables\Lib\CallbackFunction;
 
 /**
- * DataTables helper
- *
- *
+ * DataTables Helper
+ * Provides utilities for integrating DataTables with CakePHP.
  */
 class DataTablesHelper extends Helper
 {
@@ -20,134 +19,143 @@ class DataTablesHelper extends Helper
         'deferRender' => true,
     ];
 
-    public function initialize(array $config) : void
+    /**
+     * Initialize the helper and set default language configuration.
+     *
+     * @param array $config Configuration passed during initialization.
+     */
+    public function initialize(array $config): void
     {
-        /* set default i18n (not possible in _$defaultConfig due to use of __d() */
         if (empty($this->getConfig('language'))) {
-            // defaults from datatables.net/reference/option/language
-            $this->setConfig('language', [
-                'emptyTable' => __d('data_tables', 'No data available in table'),
-                'info' => __d('data_tables', 'Showing _START_ to _END_ of _TOTAL_ entries'),
-                'infoEmpty' => __d('data_tables', 'No entries to show'),
-                'infoFiltered' => __d('data_tables', '(filtered from _MAX_ total entries)'),
-                'lengthMenu' => __d('data_tables', 'Show _MENU_ entries'),
-                'processing' => __d('data_tables', 'Processing...'),
-                'search' => __d('data_tables', 'Search:'),
-                'zeroRecords' => __d('data_tables', 'No matching records found'),
-                'paginate' => [
-                    'first' => __d('data_tables', 'First'),
-                    'last' => __d('data_tables', 'Last'),
-                    'next' => __d('data_tables', 'Next'),
-                    'previous' => __d('data_tables', 'Previous'),
-                ],
-                'aria' => [
-                    'sortAscending' => __d('data_tables', ': activate to sort column ascending'),
-                    'sortDescending' => __d('data_tables', ': activate to sort column descending'),
-                ],
-            ]);
+            $this->setConfig('language', $this->getDefaultLanguageConfig());
         }
     }
+
     /**
-     * Return a Javascript function wrapper to be used in DataTables configuration
-     * @param string $name Name of Javascript function to call
-     * @param array $args Optional array of arguments to be passed when calling
+     * Get the default language configuration for DataTables.
+     *
+     * @return array
+     */
+    protected function getDefaultLanguageConfig(): array
+    {
+        return [
+            'emptyTable' => __d('data_tables', 'No data available in table'),
+            'info' => __d('data_tables', 'Showing _START_ to _END_ of _TOTAL_ entries'),
+            'infoEmpty' => __d('data_tables', 'No entries to show'),
+            'infoFiltered' => __d('data_tables', '(filtered from _MAX_ total entries)'),
+            'lengthMenu' => __d('data_tables', 'Show _MENU_ entries'),
+            'processing' => __d('data_tables', 'Processing...'),
+            'search' => __d('data_tables', 'Search:'),
+            'zeroRecords' => __d('data_tables', 'No matching records found'),
+            'paginate' => [
+                'first' => __d('data_tables', 'First'),
+                'last' => __d('data_tables', 'Last'),
+                'next' => __d('data_tables', 'Next'),
+                'previous' => __d('data_tables', 'Previous'),
+            ],
+            'aria' => [
+                'sortAscending' => __d('data_tables', ': activate to sort column ascending'),
+                'sortDescending' => __d('data_tables', ': activate to sort column descending'),
+            ],
+        ];
+    }
+
+    /**
+     * Create a JavaScript callback function for DataTables configuration.
+     *
+     * @param string $name JavaScript function name.
+     * @param array $args Arguments to pass to the function.
      * @return CallbackFunction
      */
-    public function callback(string $name, array $args = []) : CallbackFunction
+    public function callback(string $name, array $args = []): CallbackFunction
     {
         return new CallbackFunction($name, $args);
     }
 
     /**
-     * Return a table with dataTables overlay
-     * @param $id: DOM id of the table
-     * @param $dtOptions: Options for DataTables (to be merged with this helper's config as defaults)
-     * @param $htmlOptions: Options for the table, e.g. CSS classes
-     * @return string containing a <table> and a <script> element
+     * Render a DataTable with the specified options.
+     *
+     * @param string $id DOM ID of the table.
+     * @param array $dtOptions DataTables options.
+     * @param array $htmlOptions HTML attributes for the table.
+     * @return string Rendered HTML for the table and initialization script.
      */
-    public function table(string $id = 'datatable', array $dtOptions = [], array $htmlOptions = []) : string
+    public function table(string $id = 'datatable', array $dtOptions = [], array $htmlOptions = []): string
     {
-        $htmlOptions = array_merge($htmlOptions,  [
+        $htmlOptions += [
             'id' => $id,
             'class' => 'dataTable ' . ($htmlOptions['class'] ?? ''),
-        ]);
+        ];
+
         $table = $this->Html->tag('table', '', $htmlOptions);
+        $script = $this->Html->scriptBlock($this->draw("#{$id}", $dtOptions), ['block' => true]);
 
-        $code = $this->draw("#{$id}", $dtOptions);
-
-        return $table.$this->Html->scriptBlock($code, ['block' => true]);
+        return $table . $script;
     }
 
     /**
-     * Return JavaScript code to initialize DataTables object
-     * Use this method if you want to render the <table> element yourself
-     * Typically the output of this method is fed to HtmlHelper::scriptBlock()
-     * @param string $selector JQuery selector for the <table> element
-     * @param array $options Optional additional/replacement configuration to this helper's config
-     * @return string
+     * Generate JavaScript code to initialize a DataTables instance.
+     *
+     * @param string $selector jQuery selector for the table.
+     * @param array $options Additional or replacement configuration.
+     * @return string JavaScript code to initialize DataTables.
      */
-    public function draw(string $selector, array $options = []) : string
+    public function draw(string $selector, array $options = []): string
     {
-        // incorporate any defaults set earlier
         $options += $this->getConfig();
-        // fill-in missing language options, in case some were customized
-        if(isset($options['language']['url'])) {
+
+        // Merge language options if URL not specified
+        if (isset($options['language']['url'])) {
             $options['language'] = ['url' => $options['language']['url']];
         } else {
             $options['language'] += $this->getConfig('language');
         }
 
-        // sanitize & translate order
+        // Process and translate column order
         if (!empty($options['order'])) {
             $this->translateOrder($options['order'], $options['columns']);
         }
 
-        // remove field names, which are an internal/server-side setting
-        foreach ($options['columns'] as $key => $v) {
-            unset($options['columns'][$key]['field']);
+        // Remove internal field names
+        foreach ($options['columns'] as &$column) {
+            unset($column['field']);
         }
 
-        // prepare javascript object from the config, including method calls
+        // Generate JSON configuration with callbacks resolved
         $json = CallbackFunction::resolve(json_encode($options));
         $json = str_replace(['"#!!', '!!#"'], '', $json);
 
-        // return a call to initializer method
         return "dt.initDataTables('{$selector}', {$json});\n";
     }
 
-    public function translateOrder(array &$order, &$columns)
+    /**
+     * Translate order configuration to match column keys.
+     *
+     * @param array $order Order configuration.
+     * @param array $columns Column definitions.
+     * @return array Translated order configuration.
+     */
+    public function translateOrder(array &$order, array $columns): array
     {
-        // sanitize cakephp style input [a => b] -> [[a, b]]
-        $new_order = [];
-        array_walk($order, static function ($val, $key) use (&$new_order) {
-            if (is_int($key)) {
-                $new_order[] = $val;
-            }
-            else {
-                $new_order[] = [$key, $val];
-            }
-        });
-        $order = $new_order;
+        $order = array_map(static fn($key, $value) => is_int($key) ? $value : [$key, $value], array_keys($order), $order);
 
-        // sanitize single column input [a, b] -> [[a, b]]
         if (count($order) === 2 && !is_array($order[0])) {
             $order = [$order];
         }
 
-        // translate order columns
-        foreach ($order as $i => $o) {
-            if (is_numeric($order)) {
+        foreach ($order as &$item) {
+            if (!is_array($item)) {
                 continue;
-            } // already a numerical index
+            }
 
-            foreach ($columns as $key => $v) {
-                // user might have specified it either way…
-                if ($o[0] === ($v['data'] ?? null) || $o[0] === ($v['field'] ?? null)) {
-                    $order[$i][0] = $key;
+            foreach ($columns as $key => $column) {
+                if ($item[0] === ($column['data'] ?? null) || $item[0] === ($column['field'] ?? null)) {
+                    $item[0] = $key;
                     break;
                 }
             }
         }
+
         return $order;
     }
 }
