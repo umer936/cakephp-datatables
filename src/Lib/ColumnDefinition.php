@@ -63,7 +63,7 @@ class ColumnDefinition implements \JsonSerializable, \ArrayAccess
      * @return ColumnDefinition
      * @throws \InvalidArgumentException If both an array and value are provided
      */
-    public function set(array|string $key, $value = null): ColumnDefinition
+    public function set(array|string $key, mixed $value = null): ColumnDefinition
     {
         if (is_array($key)) {
             if ($value !== null) {
@@ -120,6 +120,7 @@ class ColumnDefinition implements \JsonSerializable, \ArrayAccess
      * @param string $name Name of the render function
      * @param array $args Arguments for the render function
      * @return ColumnDefinition
+     * @throws \JsonException
      */
     public function render(string $name, array $args = []): ColumnDefinition
     {

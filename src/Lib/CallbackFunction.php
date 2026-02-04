@@ -28,6 +28,7 @@ class CallbackFunction implements \JsonSerializable
      *
      * @param string $name Name of the JavaScript function to call.
      * @param array $args Optional arguments to pass when calling the function.
+     * @throws \JsonException
      */
     public function __construct(string $name, array $args = [])
     {
@@ -58,6 +59,7 @@ class CallbackFunction implements \JsonSerializable
      * @param string $name Name of the JavaScript function.
      * @param array $args Arguments to pass to the JavaScript function.
      * @return string Generated JavaScript code.
+     * @throws \JsonException
      */
     protected function generateCode(string $name, array $args): string
     {
