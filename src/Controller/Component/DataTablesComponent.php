@@ -92,7 +92,7 @@ class DataTablesComponent extends Component
      * @param array $options Query options
      * @param ColumnDefinitions|array $columns Column definitions
      */
-    private function _order(array &$options, &$columns): void
+    private function _order(array &$options, array|ColumnDefinitions $columns): void
     {
         $queryParams = $this->getController()->getRequest()->getQueryParams();
 
@@ -135,13 +135,33 @@ class DataTablesComponent extends Component
     }
 
     /**
+     * Process paging values from DataTables request.
+     */
+    private function _paging(): void
+    {
+        $request = $this->getController()->getRequest();
+        $start = $request->getQuery('start');
+        $length = $request->getQuery('length');
+
+        if ($start !== null && is_numeric($start)) {
+            $this->setConfig('start', max(0, (int)$start));
+        }
+
+        if ($length !== null && is_numeric($length)) {
+            $parsedLength = (int)$length;
+            // DataTables uses -1 to indicate no limit.
+            $this->setConfig('length', $parsedLength === -1 ? -1 : max(0, $parsedLength));
+        }
+    }
+
+    /**
      * Process query data of ajax request regarding filtering
      * Alters $options if delegateSearch is set
      * @param array $options Query options
      * @param array|ColumnDefinitions $columns Column definitions
      * @return bool True if additional filtering takes place
      */
-    private function _filter(array &$options, $columns): bool
+    private function _filter(array &$options, array|ColumnDefinitions $columns): bool
     {
         $queryParams = $this->getController()->getRequest()->getQueryParams();
         $haveFilters = false;
@@ -213,16 +233,21 @@ class DataTablesComponent extends Component
      * @param array $columns Column definitions needed for filter/order operations
      * @return Query Query to be evaluated
      */
-    public function find(string $tableName, string $finder = 'all', array $options = [], array $columns = []): Query
+    public function find(string $tableName, string $finder = 'all', array $options = [], array|ColumnDefinitions $columns = []): Query
     {
         $delegateSearch = $options['delegateSearch'] ?? false;
         $columns = $columns ?: $this->_columns;
 
+        // Reset volatile per-request conditions.
+        $this->setConfig('conditionsOr', []);
+        $this->setConfig('conditionsAnd', []);
+
         // Get table object
         $this->_table = $this->getTableLocator()->get($tableName);
 
-        // Process draw and ordering options
+        // Process draw, paging, and ordering options
         $this->_draw();
+        $this->_paging();
         $this->_order($options, $columns);
 
         // Call table's finder without filters
@@ -296,25 +321,30 @@ class DataTablesComponent extends Component
         $columnDesc = $table->getSchema()->getColumn($column);
         $columnType = $columnDesc['type'];
         $textCast = '';
+        $isLikeComparison = stripos($comparison, 'like') !== false;
 
-        if (strpos(strtolower($comparison), 'like') !== false) {
+        if ($isLikeComparison) {
             $value = $this->getConfig('prefixSearch') ? "{$value}%" : "%{$value}%";
 
             // Handle PostgreSQL text casting
-            if ($this->_table->getConnection()->getDriver() instanceof Postgres) {
+            if ($table->getConnection()->getDriver() instanceof Postgres) {
                 if ($columnType !== 'string' && $columnType !== 'text') {
                     $textCast = "::text";
                 }
             }
+        } else {
+            settype($value, $columnType);
         }
 
-        settype($value, $columnType);
         $condition = ["{$table->getAlias()}.{$column}{$textCast} {$comparison}" => $value];
+        $conditionKey = $type === 'or' ? 'conditionsOr' : 'conditionsAnd';
+        $conditions = $this->getConfig($conditionKey);
+        $conditions[] = $condition;
 
         if ($type === 'or') {
-            $this->setConfig('conditionsOr', $condition);
+            $this->setConfig('conditionsOr', $conditions);
         } else {
-            $this->setConfig('conditionsAnd', $condition);
+            $this->setConfig('conditionsAnd', $conditions);
         }
     }
 

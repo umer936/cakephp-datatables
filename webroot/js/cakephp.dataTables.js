@@ -154,6 +154,10 @@ dt.init.fitIntoWindow = function (table, offset = 0, fullscreen = false) {
     let body = wrapper.querySelector('.dataTables_scrollBody') || wrapper;
     const tableNode = table.table().node();
 
+    if (tableNode.dtFitIntoWindowCleanup) {
+        tableNode.dtFitIntoWindowCleanup();
+    }
+
     const minHeight = body.offsetHeight;
     tableNode.dataset.fullscreen = fullscreen ? 'true' : 'false';
 
@@ -172,16 +176,27 @@ dt.init.fitIntoWindow = function (table, offset = 0, fullscreen = false) {
         }
     };
 
-    tableNode.addEventListener('fitIntoWindow', resizeHandler);
-    tableNode.dtFitIntoWindowResize = resizeHandler;
-    tableNode.dispatchEvent(new Event('fitIntoWindow'));
-
-    window.addEventListener('resize', debounce(() => tableNode.dispatchEvent(new Event('fitIntoWindow')), 250));
-
-    tableNode.addEventListener('toggleFullscreen', () => {
+    const debouncedResize = debounce(() => tableNode.dispatchEvent(new Event('fitIntoWindow')), 250);
+    const fullscreenHandler = () => {
         tableNode.dataset.fullscreen = tableNode.dataset.fullscreen === 'true' ? 'false' : 'true';
         tableNode.dispatchEvent(new Event('fitIntoWindow'));
-    });
+    };
+
+    tableNode.addEventListener('fitIntoWindow', resizeHandler);
+    tableNode.dispatchEvent(new Event('fitIntoWindow'));
+
+    window.addEventListener('resize', debouncedResize);
+    tableNode.addEventListener('toggleFullscreen', fullscreenHandler);
+
+    // Expose cleanup for consumers that re-initialize tables in dynamic UIs.
+    tableNode.dtFitIntoWindowCleanup = () => {
+        tableNode.removeEventListener('fitIntoWindow', resizeHandler);
+        tableNode.removeEventListener('toggleFullscreen', fullscreenHandler);
+        window.removeEventListener('resize', debouncedResize);
+        delete tableNode.dtFitIntoWindowCleanup;
+    };
+
+    return tableNode.dtFitIntoWindowCleanup;
 };
 
 /**
