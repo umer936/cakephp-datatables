@@ -3,6 +3,7 @@ namespace DataTables\View\Helper;
 
 use Cake\View\Helper;
 use DataTables\Lib\CallbackFunction;
+use function Cake\I18n\__d;
 
 /**
  * DataTables Helper
@@ -103,6 +104,16 @@ class DataTablesHelper extends Helper
     public function draw(string $selector, array $options = []): string
     {
         $options = array_replace_recursive($this->getConfig(), $options);
+
+        $columns = $options['columns'] ?? [];
+        if ($columns instanceof \JsonSerializable) {
+            $columns = $columns->jsonSerialize();
+        } elseif ($columns instanceof \Traversable) {
+            $columns = iterator_to_array($columns, false);
+        } elseif (!is_array($columns)) {
+            $columns = [];
+        }
+        $options['columns'] = $columns;
 
         // Merge language options if URL not specified
         $options['language'] = isset($options['language']) && is_array($options['language']) ? $options['language'] : [];
