@@ -3,32 +3,77 @@
 // Initialize the namespace if not already initialized
 var dt = dt || { init: {}, render: {} };
 
+function resolveElement(value) {
+    if (!value) {
+        return null;
+    }
+
+    if (value instanceof Element) {
+        return value;
+    }
+
+    return document.querySelector(value);
+}
+
+function loadIntoTarget(target, url) {
+    const element = resolveElement(target);
+
+    if (!element) {
+        return;
+    }
+
+    fetch(url, { credentials: 'same-origin' })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Request failed with status ${response.status}`);
+            }
+
+            return response.text();
+        })
+        .then(html => {
+            element.innerHTML = html;
+        })
+        .catch(() => {
+            window.location.href = url;
+        });
+}
+
 /**
  * Initialize DataTables
  * @param {string} id - Table selector
  * @param {object} options - DataTables configuration options
  */
 dt.initDataTables = function (id, options) {
+    const tableElement = resolveElement(id);
+
+    if (!tableElement) {
+        throw new Error(`DataTables element not found: ${id}`);
+    }
+
+    const config = Object.assign({}, options || {});
+    const initializers = Array.isArray(config.init) ? config.init.slice() : [];
+
+    delete config.init;
+
     // Default text renderer for columns without a render function
-    options.columns.forEach((column, i) => {
-        if (!column.render) {
-            options.columns[i].render = DataTable.render.text();
-        }
-    });
-
-    // Attach initializers if provided
-    if (options.init) {
-        const initializers = options.init;
-        delete options.init;
-
-        document.querySelector(id).addEventListener('preInit.dt', function () {
-            const table = new DataTable(document.querySelector(id), options);
-            initializers.forEach(init => init(table));
+    if (Array.isArray(config.columns)) {
+        config.columns.forEach((column, i) => {
+            if (column && !column.render) {
+                config.columns[i].render = DataTable.render.text();
+            }
         });
     }
 
     // Initialize the DataTable instance with the provided options
-    new DataTable(document.querySelector(id), options);
+    const table = new DataTable(tableElement, config);
+
+    initializers.forEach(init => {
+        if (typeof init === 'function') {
+            init(table);
+        }
+    });
+
+    return table;
 };
 
 /**
@@ -39,8 +84,12 @@ dt.initDataTables = function (id, options) {
  * @param {string} selector - Optional selector for external search field
  */
 dt.init.delayedSearch = function (table, minSearchCharacters = 3, delay = 200, selector) {
-    const inputSelector = selector || `#${table.table().node().id}_filter input`;
-    const input = document.querySelector(inputSelector);
+    const input = selector ? resolveElement(selector) : table.table().container().querySelector('input[type="search"]');
+
+    if (!input) {
+        throw new Error('Unable to locate the DataTables search input.');
+    }
+
     let timer = null;
 
     // Trigger search when the input reaches the minimum character threshold
@@ -72,10 +121,20 @@ dt.init.delayedSearch = function (table, minSearchCharacters = 3, delay = 200, s
 dt.init.rowLinks = function (table, urlbase, target) {
     table.on('select', (e, dt, type, indexes) => {
         const row = table.rows(indexes).data()[0];
-        const url = `${urlbase}/${row.id}`;
+        if (!row) {
+            return;
+        }
+
+        const rowId = row.id ?? (typeof table.row === 'function' && indexes.length ? table.row(indexes[0]).id() : null);
+
+        if (!rowId) {
+            return;
+        }
+
+        const url = `${urlbase}/${rowId}`;
 
         if (target) {
-            document.querySelector(target).load(url);
+            loadIntoTarget(target, url);
         } else {
             window.location.href = url;
         }
@@ -93,14 +152,16 @@ dt.init.rowLinks = function (table, urlbase, target) {
 dt.init.fitIntoWindow = function (table, offset = 0, fullscreen = false) {
     const wrapper = table.table().container();
     let body = wrapper.querySelector('.dataTables_scrollBody') || wrapper;
+    const tableNode = table.table().node();
 
     const minHeight = body.offsetHeight;
-    table.table().node().dataset.fullscreen = fullscreen;
+    tableNode.dataset.fullscreen = fullscreen ? 'true' : 'false';
 
     const resizeHandler = () => {
         const windowHeight = window.innerHeight;
         const wrapperRect = wrapper.getBoundingClientRect();
-        let totalHeight = fullscreen ? windowHeight : windowHeight - wrapperRect.top;
+        const isFullscreen = tableNode.dataset.fullscreen === 'true';
+        const totalHeight = isFullscreen ? windowHeight : windowHeight - wrapperRect.top;
 
         const newHeight = Math.max(totalHeight - offset, minHeight);
         if (body.offsetHeight !== newHeight) {
@@ -111,14 +172,15 @@ dt.init.fitIntoWindow = function (table, offset = 0, fullscreen = false) {
         }
     };
 
-    table.on('fitIntoWindow', resizeHandler);
-    table.trigger('fitIntoWindow');
+    tableNode.addEventListener('fitIntoWindow', resizeHandler);
+    tableNode.dtFitIntoWindowResize = resizeHandler;
+    tableNode.dispatchEvent(new Event('fitIntoWindow'));
 
-    window.addEventListener('resize', debounce(() => table.trigger('fitIntoWindow'), 250));
+    window.addEventListener('resize', debounce(() => tableNode.dispatchEvent(new Event('fitIntoWindow')), 250));
 
-    table.on('toggleFullscreen', () => {
-        table.table().node().dataset.fullscreen = !(table.table().node().dataset.fullscreen === 'true');
-        table.trigger('fitIntoWindow');
+    tableNode.addEventListener('toggleFullscreen', () => {
+        tableNode.dataset.fullscreen = tableNode.dataset.fullscreen === 'true' ? 'false' : 'true';
+        tableNode.dispatchEvent(new Event('fitIntoWindow'));
     });
 };
 

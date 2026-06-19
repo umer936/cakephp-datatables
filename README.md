@@ -1,6 +1,6 @@
 # cakephp-datatables
 
-[DataTables](https://www.datatables.net) is a jQuery plugin for intelligent HTML tables. Next to adding dynamic elements to the table, it also has great supports for on-demand data fetching and server-side processing. The _cakephp-datatables_ plugin makes it easy to use the functionality DataTables provides in your CakePHP 3 application. It consists of a helper to add DataTables to your view and a Component to transparently process AJAX requests made by DataTables.
+[DataTables](https://www.datatables.net) is a JavaScript library for intelligent HTML tables. Next to adding dynamic elements to the table, it also has great support for on-demand data fetching and server-side processing. DataTables 2 can run without jQuery, and this plugin now targets that vanilla API. The _cakephp-datatables_ plugin makes it easy to use the functionality DataTables provides in your CakePHP application. It consists of a helper to add DataTables to your view and a Component to transparently process AJAX requests made by DataTables.
 
 ## Versioning
 
@@ -12,8 +12,8 @@
 
 ## Requirements
 
-* PHP 7 or 8
-* CakePHP 5.x
+* PHP 8.1+
+* CakePHP 5.3+
 * DataTables 1.x or 2.x
 
 ## Installation and Usage

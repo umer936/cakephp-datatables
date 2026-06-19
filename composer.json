@@ -1,6 +1,6 @@
 {
     "name": "umer936/cakephp-datatables",
-    "description": "jQuery DataTables for CakePHP 5",
+    "description": "DataTables for CakePHP 5.3 without jQuery",
     "homepage": "https://github.com/umer936/cakephp-datatables",
     "type": "cakephp-plugin",
     "keywords": ["cakephp", "datatables"],

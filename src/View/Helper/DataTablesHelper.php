@@ -96,15 +96,16 @@ class DataTablesHelper extends Helper
     /**
      * Generate JavaScript code to initialize a DataTables instance.
      *
-     * @param string $selector jQuery selector for the table.
+     * @param string $selector CSS selector for the table.
      * @param array $options Additional or replacement configuration.
      * @return string JavaScript code to initialize DataTables.
      */
     public function draw(string $selector, array $options = []): string
     {
-        $options += $this->getConfig();
+        $options = array_replace_recursive($this->getConfig(), $options);
 
         // Merge language options if URL not specified
+        $options['language'] = isset($options['language']) && is_array($options['language']) ? $options['language'] : [];
         if (isset($options['language']['url'])) {
             $options['language'] = ['url' => $options['language']['url']];
         } else {
@@ -112,20 +113,24 @@ class DataTablesHelper extends Helper
         }
 
         // Process and translate column order
-        if (!empty($options['order'])) {
+        if (!empty($options['order']) && !empty($options['columns'])) {
             $this->translateOrder($options['order'], $options['columns']);
         }
 
         // Remove internal field names
-        foreach ($options['columns'] as &$column) {
-            unset($column['field']);
+        if (!empty($options['columns'])) {
+            foreach ($options['columns'] as &$column) {
+                unset($column['field']);
+            }
+            unset($column);
         }
 
         // Generate JSON configuration with callbacks resolved
-        $json = CallbackFunction::resolve(json_encode($options));
+        $json = CallbackFunction::resolve(json_encode($options, JSON_THROW_ON_ERROR));
         $json = str_replace(['"#!!', '!!#"'], '', $json);
+        $selector = json_encode($selector, JSON_THROW_ON_ERROR);
 
-        return "dt.initDataTables('{$selector}', {$json});\n";
+        return "dt.initDataTables({$selector}, {$json});\n";
     }
 
     /**
