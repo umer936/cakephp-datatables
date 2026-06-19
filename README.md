@@ -20,6 +20,70 @@
 
 Please see the [Documentation][doc], esp. the [Quick Start tutorial][quickstart]
 
+## Virtual fields / computed columns
+
+DataTables can request sorting or searching on columns that are not physical database fields
+(for example a computed `full_name` or `price_total`).
+
+In this case, delegate filtering and ordering to a custom finder:
+
+```php
+// In your controller
+$data = $this->DataTables->find(
+	'Users',
+	'datatables',
+	[
+		'delegateSearch' => true,
+		'delegateOrder' => true,
+	],
+	$columns
+);
+```
+
+```php
+// In src/Model/Table/UsersTable.php
+use Cake\ORM\Query\SelectQuery;
+
+public function findDatatables(SelectQuery $query, array $options): SelectQuery
+{
+	$search = $options['globalSearch'] ?? '';
+	$requestedOrder = $options['customOrder'] ?? [];
+
+	if ($search !== '') {
+		$search = '%' . $search . '%';
+		$query->where([
+			'OR' => [
+				'Users.first_name LIKE' => $search,
+				'Users.last_name LIKE' => $search,
+			],
+		]);
+	}
+
+	// Allowlist requested sort keys and map virtual fields to SQL expressions.
+	$safeOrder = [];
+	foreach ($requestedOrder as $field => $dir) {
+		$dir = strtoupper((string)$dir) === 'DESC' ? 'DESC' : 'ASC';
+
+		if ($field === 'full_name') {
+			$safeOrder[$query->newExpr("Users.first_name || ' ' || Users.last_name")] = $dir;
+			continue;
+		}
+
+		if (in_array($field, ['Users.id', 'Users.created'], true)) {
+			$safeOrder[$field] = $dir;
+		}
+	}
+
+	if ($safeOrder) {
+		$query->orderBy($safeOrder);
+	}
+
+	return $query;
+}
+```
+
+Use this pattern whenever a DataTables column cannot be mapped directly to a real table column.
+
 [doc]: https://github.com/ypnos-web/cakephp-datatables/wiki
 [quickstart]: https://github.com/ypnos-web/cakephp-datatables/wiki/Quick-Start
 
@@ -27,13 +91,3 @@ Please see the [Documentation][doc], esp. the [Quick Start tutorial][quickstart]
 ## Credits
 
 This work is based on the [code by Frank Heider](https://github.com/fheider/cakephp-datatables) and incorporates [code by Xavier Zolezzi](https://github.com/x-zolezzi/cakephp-datatables).
-
-___
-## IMPORTANT SECURITY NOTICE for users prior to Oct 24, 2017
-
-The original code by fheider is vulnerable to SQL injection attacks, which was made apparent by a recent
-[addition to the CakePHP documentation](https://github.com/cakephp/cakephp/commit/b2b45af37f807068f6c23f152fe6e5bf64656915).
-The vulnerability is fixed by a [breaking change](https://github.com/ypnos-web/cakephp-datatables/commit/81929ad62d1e4041d00c1904f67771fec04ecd5f)
-in all branches in this repository. It affects the ordering and filtering functionality of DataTables in conjunction with
-server-side processing. If you are using a prior version of this plugin, you need to update it immediately and, if needed, change your code to
-[allow ordering and filtering with server-side processing](https://github.com/ypnos-web/cakephp-datatables/wiki/Quick-Start#enable-dynamic-filters-and-ordering).
