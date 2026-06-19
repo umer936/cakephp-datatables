@@ -251,7 +251,7 @@ class DataTablesComponent extends Component
         $this->_order($options, $columns);
 
         // Call table's finder without filters
-        $data = $this->_table->find($finder, $options);
+        $data = $this->_findWithOptions($finder, $options);
 
         // Get total count
         $this->_viewVars['recordsTotal'] = $data->count();
@@ -263,7 +263,7 @@ class DataTablesComponent extends Component
         if ($haveFilters) {
             if ($delegateSearch) {
                 // call finder again to process filters (provided in $options)
-                $data = $this->_table->find($finder, $options);
+                $data = $this->_findWithOptions($finder, $options);
             } else {
                 $data->where($this->getConfig('conditionsAnd'));
                 foreach ($this->getConfig('matching') as $association => $where) {
@@ -291,6 +291,36 @@ class DataTablesComponent extends Component
         $this->_setViewVars();
 
         return $data;
+    }
+
+    /**
+     * Call a table finder while preferring CakePHP 5 named-argument invocation.
+     *
+     * This avoids deprecation warnings for classic finder signatures that still
+     * accept an options array as second argument.
+     */
+    private function _findWithOptions(string $finder, array $options): Query
+    {
+        if ($options === []) {
+            return $this->_table->find($finder);
+        }
+
+        $hasStringKey = false;
+        $hasIntKey = false;
+        foreach (array_keys($options) as $key) {
+            if (is_string($key)) {
+                $hasStringKey = true;
+            } else {
+                $hasIntKey = true;
+            }
+        }
+
+        // Mixed positional/named args can be ambiguous when unpacking.
+        if ($hasStringKey && $hasIntKey) {
+            return $this->_table->find($finder, $options);
+        }
+
+        return $this->_table->find($finder, ...$options);
     }
 
     private function _setViewVars(): void
