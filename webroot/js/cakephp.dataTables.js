@@ -1,7 +1,7 @@
 "use strict";
 
 // Initialize the namespace if not already initialized
-var dt = dt || { init: {}, render: {} };
+var dt = window.dt = window.dt || { init: {}, render: {} };
 
 function resolveElement(value) {
     if (!value) {
@@ -50,6 +50,14 @@ dt.initDataTables = function (id, options) {
         throw new Error(`DataTables element not found: ${id}`);
     }
 
+    if (typeof DataTable === 'undefined') {
+        throw new Error('DataTables 3 is required but not loaded on the page.');
+    }
+
+    if (!DataTable.version.startsWith('3.')) {
+        throw new Error('This plugin requires DataTables 3. Use the legacy branch for older versions.');
+    }
+
     const config = Object.assign({}, options || {});
     const initializers = Array.isArray(config.init) ? config.init.slice() : [];
 
@@ -57,10 +65,11 @@ dt.initDataTables = function (id, options) {
 
     // Default text renderer for columns without a render function
     if (Array.isArray(config.columns)) {
-        config.columns.forEach((column, i) => {
-            if (column && !column.render) {
-                config.columns[i].render = DataTable.render.text();
+        config.columns = config.columns.map(column => {
+            if (column && column.render === undefined) {
+                return Object.assign({}, column, { render: DataTable.render.text() });
             }
+            return column;
         });
     }
 
@@ -151,7 +160,7 @@ dt.init.rowLinks = function (table, urlbase, target) {
  */
 dt.init.fitIntoWindow = function (table, offset = 0, fullscreen = false) {
     const wrapper = table.table().container();
-    let body = wrapper.querySelector('.dataTables_scrollBody') || wrapper;
+    const body = wrapper.querySelector('.dt-scroll-body') || wrapper;
     const tableNode = table.table().node();
 
     if (tableNode.dtFitIntoWindowCleanup) {
