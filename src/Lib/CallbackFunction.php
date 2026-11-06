@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 /**
  * A wrapper for JavaScript function calls.
@@ -7,7 +8,9 @@
 
 namespace DataTables\Lib;
 
-class CallbackFunction implements \JsonSerializable
+use JsonSerializable;
+
+class CallbackFunction implements JsonSerializable
 {
     /**
      * Placeholder for storing prepared JS statements to be injected into JSON.
@@ -47,7 +50,7 @@ class CallbackFunction implements \JsonSerializable
         // Allow one recursion (a callback with a callback as an argument).
         $replacements = array_map(
             static fn(string $content) => strtr($content, self::$_placeholders),
-            self::$_placeholders
+            self::$_placeholders,
         );
 
         return strtr($json, $replacements);

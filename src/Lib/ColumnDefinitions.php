@@ -1,24 +1,30 @@
 <?php
+declare(strict_types=1);
 
 namespace DataTables\Lib;
 
-use Traversable;
 use ArrayAccess;
-use IteratorAggregate;
+use ArrayIterator;
+use BadMethodCallException;
 use Countable;
 use InvalidArgumentException;
-use BadMethodCallException;
-use ArrayIterator;
+use IteratorAggregate;
+use JsonSerializable;
+use Traversable;
 
 /**
  * A convenience class to manage DataTables column definitions
  */
-class ColumnDefinitions implements \JsonSerializable, ArrayAccess, IteratorAggregate, Countable
+class ColumnDefinitions implements JsonSerializable, ArrayAccess, IteratorAggregate, Countable
 {
-    /** @var ColumnDefinition[] List of columns */
+    /**
+     * @var array<\DataTables\Lib\ColumnDefinition>  List of columns
+     */
     protected array $columns = [];
 
-    /** @var array<string, int> Index of columns by name */
+    /**
+     * @var array<string, int> Index of columns by name
+     */
     protected array $index = [];
 
     /**
@@ -26,7 +32,7 @@ class ColumnDefinitions implements \JsonSerializable, ArrayAccess, IteratorAggre
      *
      * @param array|string $column Name or pre-filled array for the column
      * @param string|null $fieldname ORM field this column is based on
-     * @return ColumnDefinition The added column definition
+     * @return \DataTables\Lib\ColumnDefinition The added column definition
      */
     public function add(array|string $column, ?string $fieldname = null): ColumnDefinition
     {
@@ -50,8 +56,8 @@ class ColumnDefinitions implements \JsonSerializable, ArrayAccess, IteratorAggre
     /**
      * Set titles for all columns in the order they appear.
      *
-     * @param string[] $titles Array of titles
-     * @throws InvalidArgumentException When the count of titles does not match the columns
+     * @param array<string> $titles Array of titles
+     * @throws \InvalidArgumentException When the count of titles does not match the columns
      */
     public function setTitles(array $titles): void
     {
@@ -59,7 +65,7 @@ class ColumnDefinitions implements \JsonSerializable, ArrayAccess, IteratorAggre
 
         if (count($titles) !== $columnCount) {
             throw new InvalidArgumentException(
-                sprintf('Expected %d titles, but %d given.', $columnCount, count($titles))
+                sprintf('Expected %d titles, but %d given.', $columnCount, count($titles)),
             );
         }
 
@@ -86,7 +92,7 @@ class ColumnDefinitions implements \JsonSerializable, ArrayAccess, IteratorAggre
      * @param mixed $offset Column index or name
      * @return bool True if the column exists, false otherwise
      */
-    public function offsetExists($offset): bool
+    public function offsetExists(mixed $offset): bool
     {
         return is_numeric($offset)
             ? isset($this->columns[$offset])
@@ -97,8 +103,8 @@ class ColumnDefinitions implements \JsonSerializable, ArrayAccess, IteratorAggre
      * Get a column definition by offset (index or name).
      *
      * @param mixed $offset Column index or name
-     * @return ColumnDefinition
-     * @throws InvalidArgumentException If the column does not exist
+     * @return \DataTables\Lib\ColumnDefinition
+     * @throws \InvalidArgumentException If the column does not exist
      */
     public function offsetGet(mixed $offset): mixed
     {
@@ -118,7 +124,7 @@ class ColumnDefinitions implements \JsonSerializable, ArrayAccess, IteratorAggre
      *
      * @param mixed $offset Ignored
      * @param mixed $value Ignored
-     * @throws BadMethodCallException Always
+     * @throws \BadMethodCallException Always
      */
     public function offsetSet(mixed $offset, mixed $value): void
     {
@@ -129,7 +135,7 @@ class ColumnDefinitions implements \JsonSerializable, ArrayAccess, IteratorAggre
      * Prevent unsetting of columns.
      *
      * @param mixed $offset Ignored
-     * @throws BadMethodCallException Always
+     * @throws \BadMethodCallException Always
      */
     public function offsetUnset(mixed $offset): void
     {
@@ -142,7 +148,7 @@ class ColumnDefinitions implements \JsonSerializable, ArrayAccess, IteratorAggre
     /**
      * Get an iterator for the columns.
      *
-     * @return Traversable Iterator for the columns
+     * @return \Traversable Iterator for the columns
      */
     public function getIterator(): Traversable
     {
@@ -165,7 +171,7 @@ class ColumnDefinitions implements \JsonSerializable, ArrayAccess, IteratorAggre
      * Keep track of where we stored it.
      * Note: our array is only growing! No splicing!
      *
-     * @param ColumnDefinition $column Column definition to store
+     * @param \DataTables\Lib\ColumnDefinition $column Column definition to store
      */
     protected function store(ColumnDefinition $column): void
     {

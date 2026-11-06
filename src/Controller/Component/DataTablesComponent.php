@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 namespace DataTables\Controller\Component;
 
 use Cake\Collection\Collection;
@@ -7,9 +9,10 @@ use Cake\Core\Configure;
 use Cake\Database\Driver\Postgres;
 use Cake\Http\Exception\BadRequestException;
 use Cake\ORM\Locator\LocatorAwareTrait;
-use Cake\ORM\Query;
+use Cake\ORM\Query\SelectQuery;
 use Cake\ORM\Table;
 use DataTables\Lib\ColumnDefinitions;
+use InvalidArgumentException;
 
 /**
  * DataTables component
@@ -23,9 +26,9 @@ class DataTablesComponent extends Component
         'length' => 10,
         'order' => [],
         'prefixSearch' => true, // use "LIKE …%" instead of "LIKE %…%" conditions
-        'conditionsOr' => [],  // table-wide search conditions
+        'conditionsOr' => [], // table-wide search conditions
         'conditionsAnd' => [], // column search conditions
-        'matching' => [],      // column search conditions for foreign tables
+        'matching' => [], // column search conditions for foreign tables
         'comparison' => [], // per-column comparison definition
     ];
 
@@ -49,13 +52,16 @@ class DataTablesComponent extends Component
     protected array $_viewVars = [
         'recordsTotal' => 0,
         'recordsFiltered' => 0,
-        'draw' => 0
+        'draw' => 0,
     ];
 
     protected Table $_table;
 
     protected ColumnDefinitions $_columns;
 
+    /**
+     * @inheritDoc
+     */
     public function initialize(array $config): void
     {
         parent::initialize($config);
@@ -70,6 +76,11 @@ class DataTablesComponent extends Component
         $this->_columns = new ColumnDefinitions();
     }
 
+    /**
+     * Get the configured columns.
+     *
+     * @return \DataTables\Lib\ColumnDefinitions
+     */
     public function columns(): ColumnDefinitions
     {
         return $this->_columns;
@@ -89,8 +100,9 @@ class DataTablesComponent extends Component
     /**
      * Process query data of ajax request regarding order
      * Alters $options if delegateOrder is set
+     *
      * @param array $options Query options
-     * @param ColumnDefinitions|array $columns Column definitions
+     * @param \DataTables\Lib\ColumnDefinitions|array $columns Column definitions
      */
     private function _order(array &$options, array|ColumnDefinitions $columns): void
     {
@@ -105,7 +117,7 @@ class DataTablesComponent extends Component
         foreach ($queryParams['order'] as $item) {
             // note: empty() does not work on objects
             if (!count($columns)) {
-                throw new \InvalidArgumentException('Column ordering requested, but no column definitions provided.');
+                throw new InvalidArgumentException('Column ordering requested, but no column definitions provided.');
             }
 
             $dir = strtoupper($item['dir']);
@@ -119,7 +131,7 @@ class DataTablesComponent extends Component
             }
 
             if (empty($c['field'])) {
-                throw new \InvalidArgumentException('Column description misses field name.');
+                throw new InvalidArgumentException('Column description misses field name.');
             }
 
             $order[$c['field']] = $dir;
@@ -157,8 +169,9 @@ class DataTablesComponent extends Component
     /**
      * Process query data of ajax request regarding filtering
      * Alters $options if delegateSearch is set
+     *
      * @param array $options Query options
-     * @param array|ColumnDefinitions $columns Column definitions
+     * @param \DataTables\Lib\ColumnDefinitions|array $columns Column definitions
      * @return bool True if additional filtering takes place
      */
     private function _filter(array &$options, array|ColumnDefinitions $columns): bool
@@ -169,9 +182,9 @@ class DataTablesComponent extends Component
 
         // Handle global filter (search value)
         $globalSearch = $queryParams['search']['value'] ?? '';
-        if ($globalSearch) {
-            if (empty($columns)) {
-                throw new \InvalidArgumentException('Filtering requested, but no column definitions provided.');
+        if ($globalSearch !== '') {
+            if (!count($columns)) {
+                throw new InvalidArgumentException('Filtering requested, but no column definitions provided.');
             }
 
             if ($delegateSearch) {
@@ -185,7 +198,7 @@ class DataTablesComponent extends Component
                     }
 
                     if (empty($c['field'])) {
-                        throw new \InvalidArgumentException('Column description misses field name.');
+                        throw new InvalidArgumentException('Column description misses field name.');
                     }
 
                     $this->_addCondition($c['field'], $globalSearch, 'or');
@@ -200,7 +213,7 @@ class DataTablesComponent extends Component
             if ($localSearch !== '') {
                 // note: empty() does not work on objects
                 if (!count($columns)) {
-                    throw new \InvalidArgumentException('Filtering requested, but no column definitions provided.');
+                    throw new InvalidArgumentException('Filtering requested, but no column definitions provided.');
                 }
 
                 $c = $columns[$index] ?? null;
@@ -210,7 +223,7 @@ class DataTablesComponent extends Component
                 }
 
                 if (empty($c['field'])) {
-                    throw new \InvalidArgumentException('Column description misses field name.');
+                    throw new InvalidArgumentException('Column description misses field name.');
                 }
 
                 if ($delegateSearch) {
@@ -227,20 +240,26 @@ class DataTablesComponent extends Component
 
     /**
      * Find data
+     *
      * @param string $tableName ORM table name
      * @param string $finder Finder name (as in Table::find())
      * @param array $options Finder options (as in Table::find())
      * @param array $columns Column definitions needed for filter/order operations
-     * @return Query Query to be evaluated
+     * @return \Cake\ORM\Query\SelectQuery Query to be evaluated
      */
-    public function find(string $tableName, string $finder = 'all', array $options = [], array|ColumnDefinitions $columns = []): Query
-    {
+    public function find(
+        string $tableName,
+        string $finder = 'all',
+        array $options = [],
+        array|ColumnDefinitions $columns = [],
+    ): SelectQuery {
         $delegateSearch = $options['delegateSearch'] ?? false;
         $columns = $columns ?: $this->_columns;
 
         // Reset volatile per-request conditions.
         $this->setConfig('conditionsOr', []);
         $this->setConfig('conditionsAnd', []);
+        $this->_viewVars['draw'] = 0;
 
         // Get table object
         $this->_table = $this->getTableLocator()->get($tableName);
@@ -267,7 +286,7 @@ class DataTablesComponent extends Component
             } else {
                 $data->where($this->getConfig('conditionsAnd'));
                 foreach ($this->getConfig('matching') as $association => $where) {
-                    $data->matching($association, fn(Query $q) => $q->where($where));
+                    $data->matching($association, fn(SelectQuery $q) => $q->where($where));
                 }
                 if (!empty($this->getConfig('conditionsOr'))) {
                     $data->where(['or' => $this->getConfig('conditionsOr')]);
@@ -285,7 +304,9 @@ class DataTablesComponent extends Component
         }
 
         // Apply sorting
-        $data->orderBy($this->getConfig('order'));
+        if (empty($options['delegateOrder'])) {
+            $data->orderBy($this->getConfig('order'));
+        }
 
         // Set view vars
         $this->_setViewVars();
@@ -294,39 +315,36 @@ class DataTablesComponent extends Component
     }
 
     /**
-     * Call a table finder while preferring CakePHP 5 named-argument invocation.
-     *
-     * This avoids deprecation warnings for classic finder signatures that still
-     * accept an options array as second argument.
+     * Call a table finder using CakePHP 5 named arguments.
      */
-    private function _findWithOptions(string $finder, array $options): Query
+    private function _findWithOptions(string $finder, array $options): SelectQuery
     {
-        if ($options === []) {
-            return $this->_table->find($finder);
-        }
-
-        $hasStringKey = false;
-        $hasIntKey = false;
+        // These switches belong to the component, not the finder signature.
+        unset($options['delegateSearch'], $options['delegateOrder']);
         foreach (array_keys($options) as $key) {
-            if (is_string($key)) {
-                $hasStringKey = true;
-            } else {
-                $hasIntKey = true;
+            if (!is_string($key)) {
+                throw new InvalidArgumentException('Finder options must use named arguments.');
             }
-        }
-
-        // Mixed positional/named args can be ambiguous when unpacking.
-        if ($hasStringKey && $hasIntKey) {
-            return $this->_table->find($finder, $options);
         }
 
         return $this->_table->find($finder, ...$options);
     }
 
+    /**
+     * Set protocol counts and CakePHP JSON serialization options.
+     *
+     * @return void
+     */
     private function _setViewVars(): void
     {
         $controller = $this->getController();
-        $_serialize = $controller->viewBuilder()->getVar('_serialize');
+        $_serialize = $controller->viewBuilder()->getOption('serialize');
+
+        if ($_serialize === true) {
+            $controller->set($this->_viewVars);
+
+            return;
+        }
 
         if ($_serialize === null) {
             $_serialize = [];
@@ -336,19 +354,33 @@ class DataTablesComponent extends Component
 
         $_serialize = array_values(array_unique(array_merge($_serialize, array_keys($this->_viewVars))));
         $controller->set($this->_viewVars);
-        $controller->set('_serialize', $_serialize);
+        $controller->viewBuilder()->setOption('serialize', $_serialize);
     }
 
+    /**
+     * Add a schema-backed search condition.
+     *
+     * @param string $column Column name.
+     * @param string $value Search value.
+     * @param string $type Condition conjunction.
+     * @return void
+     */
     private function _addCondition(string $column, string $value, string $type = 'and'): void
     {
         $table = $this->_table;
-        if (($pos = strpos($column, '.')) !== false) {
+        $pos = strpos($column, '.');
+        if ($pos !== false) {
             $table = $this->getTableLocator()->get(substr($column, 0, $pos));
             $column = substr($column, $pos + 1);
         }
 
-        $comparison = trim($this->_getComparison($table, $column));
         $columnDesc = $table->getSchema()->getColumn($column);
+        if ($columnDesc === null) {
+            throw new InvalidArgumentException(
+                "Cannot search computed field {$column}. Use delegateSearch with a custom finder.",
+            );
+        }
+        $comparison = trim($this->_getComparison($table, $column));
         $columnType = $columnDesc['type'];
         $textCast = '';
         $isLikeComparison = stripos($comparison, 'like') !== false;
@@ -359,7 +391,7 @@ class DataTablesComponent extends Component
             // Handle PostgreSQL text casting
             if ($table->getConnection()->getDriver() instanceof Postgres) {
                 if ($columnType !== 'string' && $columnType !== 'text') {
-                    $textCast = "::text";
+                    $textCast = '::text';
                 }
             }
         } else {
@@ -381,20 +413,23 @@ class DataTablesComponent extends Component
     /**
      * Get comparison operator by entity and column name.
      *
-     * @param Table $table ORM table
+     * @param \Cake\ORM\Table $table ORM table
      * @param string $column Column name
      * @return string Comparison operator
      */
     protected function _getComparison(Table $table, string $column): string
     {
         $config = new Collection($this->getConfig('comparison'));
-        $userConfig = $config->filter(fn($item, $key) => strtolower($key) === strtolower("{$table->getAlias()}.{$column}"));
+        $userConfig = $config->filter(
+            fn($item, $key) => strtolower($key) === strtolower("{$table->getAlias()}.{$column}"),
+        );
 
         if (!$userConfig->isEmpty()) {
             return $userConfig->first();
         }
 
         $columnDesc = $table->getSchema()->getColumn($column);
+
         return $this->_defaultComparison[$columnDesc['type']] ?? '=';
     }
 }

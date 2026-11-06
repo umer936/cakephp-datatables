@@ -5,3 +5,9 @@ CakePHP 3
 /config/app.php
 /tmp/*
 /logs/*
+/node_modules/
+/coverage/
+/.phpunit.result.cache
+/.phpunit.cache/
+/phpunit.xml
+/phpcs.xml
